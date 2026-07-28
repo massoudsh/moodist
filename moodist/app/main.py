@@ -1,6 +1,6 @@
-"""FastAPI MVP — دستیار تصمیم خرید لباس.
+"""Moodist — FastAPI MVP دستیار تصمیم خرید لباس.
 
-اجرا: uvicorn app.main:app --reload --app-dir wardrobe-advisor
+اجرا: uvicorn app.main:app --reload --app-dir moodist
 """
 
 import os
@@ -36,7 +36,7 @@ os.makedirs(STORAGE_DIR, exist_ok=True)
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Wardrobe Advisor API (MVP)")
+app = FastAPI(title="Moodist API (MVP)")
 vision_analyzer = HeuristicVisionAnalyzer()
 
 

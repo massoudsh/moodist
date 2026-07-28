@@ -1,4 +1,4 @@
-# معماری — Wardrobe Advisor
+# معماری — Moodist
 
 ## استک انتخابی
 | لایه | انتخاب | دلیل |
@@ -92,7 +92,7 @@ POST /analyze  { user_id, image (upload) یا product_url }
 
 ## ساختار پوشه‌ها
 ```
-wardrobe-advisor/
+moodist/
   docs/
     prd.md            سند محصول
     architecture.md    همین سند
