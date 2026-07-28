@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Moodist — Ambient Sounds for Focus &amp; Calm</title>
+<meta name="description" content="Moodist blends curated ambient sounds into custom soundscapes to help you focus, relax, and sleep. Free, open-source, no account required." />
+<link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="nav">
+    <div class="nav__inner">
+      <a class="brand" href="#top">
+        <span class="brand__mark">🌲</span> Moodist
+      </a>
+      <nav class="nav__links">
+        <a href="#features">Features</a>
+        <a href="#sounds">Sounds</a>
+        <a href="#roadmap">Roadmap</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+      <a class="btn btn--ghost" href="#get-started">Get Started</a>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="hero__content">
+        <span class="pill">Free &amp; Open Source</span>
+        <h1>Ambient sounds for<br /><span class="accent">focus and calm</span>.</h1>
+        <p class="hero__subtitle">
+          Layer rain, forest, café chatter, white noise and more into a custom
+          soundscape — right in your browser. No account, no ads, no tracking.
+        </p>
+        <div class="hero__actions">
+          <a class="btn btn--primary" href="#get-started">Start Mixing — It's Free</a>
+          <a class="btn btn--outline" href="#features">See how it works</a>
+        </div>
+      </div>
+      <div class="hero__player" aria-hidden="true">
+        <div class="player-card">
+          <div class="player-card__row"><span>🌧️ Rain</span><div class="bar"><i style="width:70%"></i></div></div>
+          <div class="player-card__row"><span>🌲 Forest</span><div class="bar"><i style="width:45%"></i></div></div>
+          <div class="player-card__row"><span>🔥 Fireplace</span><div class="bar"><i style="width:60%"></i></div></div>
+          <div class="player-card__row"><span>☕ Café</span><div class="bar"><i style="width:20%"></i></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="features" class="features">
+      <h2>Everything you need to build your soundscape</h2>
+      <div class="grid">
+        <article class="card">
+          <span class="card__icon">🎚️</span>
+          <h3>Custom soundscapes</h3>
+          <p>Mix dozens of ambient sounds with independent volume control and smooth fade transitions.</p>
+        </article>
+        <article class="card">
+          <span class="card__icon">🔗</span>
+          <h3>Share your mix</h3>
+          <p>Every mix is encoded into a URL — send it to a friend and they'll hear exactly what you hear.</p>
+        </article>
+        <article class="card">
+          <span class="card__icon">⭐</span>
+          <h3>Presets</h3>
+          <p>Save, rename and reload your favorite mixes for study, sleep or deep work sessions.</p>
+        </article>
+        <article class="card">
+          <span class="card__icon">⏱️</span>
+          <h3>Focus tools</h3>
+          <p>Built-in Pomodoro timer, sleep timer, countdown, breathing exercise, notepad and todo list.</p>
+        </article>
+        <article class="card">
+          <span class="card__icon">🧠</span>
+          <h3>Binaural &amp; isochronic tones</h3>
+          <p>Generate binaural beats and isochronic tones to support concentration, meditation or sleep.</p>
+        </article>
+        <article class="card">
+          <span class="card__icon">📴</span>
+          <h3>Installable &amp; offline</h3>
+          <p>Install Moodist as a PWA and keep listening even without an internet connection.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="sounds" class="sounds">
+      <h2>Dozens of curated sounds, organized by mood</h2>
+      <div class="tags">
+        <span>Nature</span><span>Rain</span><span>Animals</span><span>Urban</span>
+        <span>Places</span><span>Transport</span><span>Things</span><span>Noise</span><span>Binaural</span>
+      </div>
+    </section>
+
+    <section id="roadmap" class="roadmap">
+      <h2>Roadmap</h2>
+      <ol class="timeline">
+        <li><strong>Phase 1 — MVP</strong><span>Core sound library, mixer, play/pause &amp; volume per sound.</span></li>
+        <li><strong>Phase 2 — Sharing &amp; Presets</strong><span>Save mixes locally and share via URL.</span></li>
+        <li><strong>Phase 3 — Focus Tools</strong><span>Pomodoro, sleep timer, breathing exercise, notepad.</span></li>
+        <li><strong>Phase 4 — PWA</strong><span>Installable, offline-first experience.</span></li>
+        <li><strong>Phase 5 — Advanced Audio</strong><span>Binaural beats, isochronic tones, self-host Docker image.</span></li>
+      </ol>
+    </section>
+
+    <section id="get-started" class="cta">
+      <h2>Ready to find your focus?</h2>
+      <p>Moodist is free, open-source and works entirely in your browser.</p>
+      <a class="btn btn--primary" href="#top">Open Moodist</a>
+    </section>
+
+    <section id="faq" class="faq">
+      <h2>FAQ</h2>
+      <details>
+        <summary>Do I need an account?</summary>
+        <p>No. Moodist works instantly in your browser with no sign-up required.</p>
+      </details>
+      <details>
+        <summary>Is it free?</summary>
+        <p>Yes, Moodist is free and open-source under the MIT license.</p>
+      </details>
+      <details>
+        <summary>Can I self-host it?</summary>
+        <p>Yes, Moodist can be self-hosted via Docker once packaged (see roadmap Phase 5).</p>
+      </details>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>Moodist — Ambient sounds for focus and calm. Open source, MIT licensed.</p>
+  </footer>
+
+  <script src="./script.js"></script>
+</body>
+</html>
