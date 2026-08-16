@@ -12,6 +12,7 @@
 | `moodist/tests/` | تست‌های end-to-end |
 | `moodist/docs/prd.md` | سند محصول |
 | `moodist/docs/architecture.md` | معماری و مدل داده کامل |
+| `docs/vault-template/` | قالب عمومی «ویکی دانش پروژه» برای استفاده در پروژه‌های دیگر |
 
 جزئیات بیشتر در [ویکی ریپو](https://github.com/massoudsh/moodist/wiki).
 
