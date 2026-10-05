@@ -4,3 +4,10 @@ sqlalchemy
 pydantic
 pillow
 pytest
+alembic
+bcrypt
+PyJWT
+httpx
+boto3
+prometheus-client
+python-multipart
