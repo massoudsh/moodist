@@ -5,10 +5,13 @@
 
 import os
 import uuid
+from io import BytesIO
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
+from PIL import Image, UnidentifiedImageError
 from sqlalchemy.orm import Session
 
+from app import config
 from app.database import Base, engine, get_db
 from app.matcher import decide
 from app.models import (
@@ -31,8 +34,11 @@ from app.schemas import (
 from app.vision import HeuristicVisionAnalyzer
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-STORAGE_DIR = os.path.join(BASE_DIR, "storage", "images")
+STORAGE_DIR = config.LOCAL_STORAGE_DIR or os.path.join(BASE_DIR, "storage", "images")
 os.makedirs(STORAGE_DIR, exist_ok=True)
+
+if config.IS_PRODUCTION:
+    config.validate_production_config()
 
 Base.metadata.create_all(bind=engine)
 
@@ -40,8 +46,34 @@ app = FastAPI(title="Moodist API (MVP)")
 vision_analyzer = HeuristicVisionAnalyzer()
 
 
-def _save_image(data: bytes) -> str:
-    filename = f"{uuid.uuid4().hex}.jpg"
+def _read_image(upload: UploadFile) -> tuple[bytes, str]:
+    if upload.content_type not in config.ALLOWED_IMAGE_CONTENT_TYPES:
+        raise HTTPException(415, "فرمت تصویر پشتیبانی نمی‌شود")
+
+    data = upload.file.read(config.MAX_IMAGE_BYTES + 1)
+    if not data:
+        raise HTTPException(400, "تصویر خالی است")
+    if len(data) > config.MAX_IMAGE_BYTES:
+        raise HTTPException(413, "حجم تصویر بیش از حد مجاز است")
+
+    try:
+        with Image.open(BytesIO(data)) as image:
+            image.verify()
+        with Image.open(BytesIO(data)) as image:
+            image_format = image.format
+            width, height = image.size
+    except (UnidentifiedImageError, OSError):
+        raise HTTPException(400, "فایل تصویر معتبر نیست")
+
+    if image_format not in config.ALLOWED_IMAGE_FORMATS:
+        raise HTTPException(415, "فرمت تصویر پشتیبانی نمی‌شود")
+    if width * height > config.MAX_IMAGE_PIXELS:
+        raise HTTPException(413, "ابعاد تصویر بیش از حد مجاز است")
+    return data, image_format.lower()
+
+
+def _save_image(data: bytes, image_format: str) -> str:
+    filename = f"{uuid.uuid4().hex}.{image_format}"
     path = os.path.join(STORAGE_DIR, filename)
     with open(path, "wb") as f:
         f.write(data)
@@ -91,9 +123,9 @@ def add_wardrobe_item(
     if not user:
         raise HTTPException(404, "کاربر پیدا نشد")
 
-    data = image.file.read()
+    data, image_format = _read_image(image)
     result = vision_analyzer.analyze(data, category_hint=category)
-    image_path = _save_image(data)
+    image_path = _save_image(data, image_format)
 
     item = WardrobeItem(
         user_id=user_id,
@@ -121,9 +153,9 @@ def analyze_product(
     if not user:
         raise HTTPException(404, "کاربر پیدا نشد")
 
-    data = image.file.read()
+    data, image_format = _read_image(image)
     vision_result = vision_analyzer.analyze(data, category_hint=category)
-    image_path = _save_image(data)
+    image_path = _save_image(data, image_format)
 
     query = ProductQuery(
         user_id=user_id,

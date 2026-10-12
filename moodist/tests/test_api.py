@@ -98,6 +98,26 @@ def test_add_wardrobe_item():
     assert body["dominant_color"] == "blue"
 
 
+def test_upload_rejects_non_image_content_type():
+    user_id = _create_user()
+    resp = client.post(
+        "/wardrobe",
+        data={"user_id": user_id, "category": "shirt"},
+        files={"image": ("shirt.txt", b"not an image", "text/plain")},
+    )
+    assert resp.status_code == 415
+
+
+def test_upload_rejects_invalid_image_content():
+    user_id = _create_user()
+    resp = client.post(
+        "/wardrobe",
+        data={"user_id": user_id, "category": "shirt"},
+        files={"image": ("shirt.jpg", b"not an image", "image/jpeg")},
+    )
+    assert resp.status_code == 400
+
+
 def test_analyze_recommends_dont_buy_for_duplicate_and_mismatched_color():
     user_id = _create_user()
     # سلیقهٔ کاربر: رنگ‌های موردعلاقه فقط قرمز است (آبی جزو سلیقه نیست)
