@@ -191,3 +191,96 @@ def test_analyze_unknown_user_returns_404():
         files={"image": ("x.jpg", _solid_color_image(BLUE), "image/jpeg")},
     )
     assert resp.status_code == 404
+
+
+def _add_item(user_id: int, category: str, color: tuple[int, int, int]) -> None:
+    resp = client.post(
+        "/wardrobe",
+        data={"user_id": user_id, "category": category},
+        files={"image": (f"{category}.jpg", _solid_color_image(color), "image/jpeg")},
+    )
+    assert resp.status_code == 200
+
+
+def test_purchase_history_rejects_invalid_decision():
+    user_id = _create_user()
+    analyze_resp = client.post(
+        "/analyze",
+        data={"user_id": user_id, "category": "jacket"},
+        files={"image": ("new.jpg", _solid_color_image(RED), "image/jpeg")},
+    )
+    product_query_id = analyze_resp.json()["product_query_id"]
+
+    resp = client.post(
+        "/purchase-history",
+        json={"user_id": user_id, "product_query_id": product_query_id, "decision": "maybe"},
+    )
+    assert resp.status_code == 422
+
+
+def test_wardrobe_analysis_reports_missing_and_dominant():
+    user_id = _create_user()
+    _add_item(user_id, "shirt", BLUE)
+    _add_item(user_id, "t-shirt", BLUE)
+
+    resp = client.get(f"/wardrobe/analysis/{user_id}")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total_items"] == 2
+    assert body["dominant_colors"] == ["blue"]
+    assert "bottom" in body["missing_categories"]
+    assert "shoes" in body["missing_categories"]
+
+
+def test_wardrobe_analysis_unknown_user_returns_404():
+    resp = client.get("/wardrobe/analysis/999999")
+    assert resp.status_code == 404
+
+
+def test_outfits_built_from_wardrobe():
+    user_id = _create_user()
+    _add_item(user_id, "shirt", BLUE)
+    _add_item(user_id, "pants", (30, 30, 30))
+
+    resp = client.get(f"/outfits/{user_id}", params={"occasion": "casual"})
+    assert resp.status_code == 200
+    outfits = resp.json()
+    assert len(outfits) == 1
+    categories = {item["category"] for item in outfits[0]["items"]}
+    assert categories == {"shirt", "pants"}
+    assert outfits[0]["matched_color"] == "blue"
+
+
+def test_outfits_invalid_occasion_returns_422():
+    user_id = _create_user()
+    resp = client.get(f"/outfits/{user_id}", params={"occasion": "space"})
+    assert resp.status_code == 422
+
+
+def test_outfits_empty_wardrobe_returns_empty_list():
+    user_id = _create_user()
+    resp = client.get(f"/outfits/{user_id}")
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+def test_style_advice_answers_color_question():
+    user_id = _create_user()
+    _add_item(user_id, "shirt", RED)
+
+    resp = client.post(
+        "/style-advice",
+        json={"user_id": user_id, "question": "رنگ غالب کمد من چیست؟"},
+    )
+    assert resp.status_code == 200
+    assert "red" in resp.json()["answer"]
+
+
+def test_shopping_guidance_suggests_missing_categories():
+    user_id = _create_user()
+    _add_item(user_id, "shirt", BLUE)
+
+    resp = client.get(f"/shopping-guidance/{user_id}")
+    assert resp.status_code == 200
+    suggestions = resp.json()["suggestions"]
+    assert any("bottom" in s for s in suggestions)

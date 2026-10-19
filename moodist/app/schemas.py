@@ -1,8 +1,12 @@
 """اسکیمای Pydantic برای ورودی/خروجی API"""
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
+
+DECISION = Literal["bought", "skipped"]
+OCCASION = Literal["casual", "formal", "sport"]
 
 
 class UserCreate(BaseModel):
@@ -54,4 +58,32 @@ class RecommendationOut(BaseModel):
 class PurchaseDecisionIn(BaseModel):
     user_id: int
     product_query_id: int
-    decision: str  # "bought" | "skipped"
+    decision: DECISION
+
+
+class WardrobeAnalysisOut(BaseModel):
+    total_items: int
+    categories: dict[str, int]
+    colors: dict[str, int]
+    dominant_colors: list[str]
+    dominant_styles: list[str]
+    missing_categories: list[str]
+
+
+class OutfitItemOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    category: str
+    dominant_color: str
+
+
+class OutfitOut(BaseModel):
+    occasion: OCCASION
+    items: list[OutfitItemOut]
+    matched_color: str | None
+    explanation: str
+
+
+class StyleQuestionIn(BaseModel):
+    user_id: int
+    question: str

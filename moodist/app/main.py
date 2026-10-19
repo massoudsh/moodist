@@ -25,12 +25,16 @@ from app.models import (
 from app.schemas import (
     PurchaseDecisionIn,
     RecommendationOut,
+    StyleQuestionIn,
     TasteProfileIn,
     TasteProfileOut,
     UserCreate,
     UserOut,
+    WardrobeAnalysisOut,
     WardrobeItemOut,
+    OutfitOut,
 )
+from app.styling import analyze_wardrobe, shopping_guidance, style_advice, suggest_outfits
 from app.vision import HeuristicVisionAnalyzer
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -199,8 +203,6 @@ def record_purchase_decision(payload: PurchaseDecisionIn, db: Session = Depends(
     query = db.get(ProductQuery, payload.product_query_id)
     if not query or query.user_id != payload.user_id:
         raise HTTPException(404, "درخواست تحلیل موردنظر پیدا نشد")
-    if payload.decision not in ("bought", "skipped"):
-        raise HTTPException(400, "decision باید bought یا skipped باشد")
 
     history = PurchaseHistory(
         user_id=payload.user_id,
@@ -220,3 +222,30 @@ def list_purchase_history(user_id: int, db: Session = Depends(get_db)):
         .order_by(PurchaseHistory.decided_at.desc())
         .all()
     )
+
+
+def _user_wardrobe(db: Session, user_id: int) -> list[WardrobeItem]:
+    if not db.get(User, user_id):
+        raise HTTPException(404, "کاربر پیدا نشد")
+    return db.query(WardrobeItem).filter(WardrobeItem.user_id == user_id).all()
+
+
+@app.get("/wardrobe/analysis/{user_id}", response_model=WardrobeAnalysisOut)
+def wardrobe_analysis(user_id: int, db: Session = Depends(get_db)):
+    return analyze_wardrobe(_user_wardrobe(db, user_id))
+
+
+@app.get("/outfits/{user_id}", response_model=list[OutfitOut])
+def outfits(user_id: int, occasion: OCCASION = "casual", db: Session = Depends(get_db)):
+    return suggest_outfits(_user_wardrobe(db, user_id), occasion=occasion)
+
+
+@app.post("/style-advice")
+def ask_style(payload: StyleQuestionIn, db: Session = Depends(get_db)):
+    wardrobe = _user_wardrobe(db, payload.user_id)
+    return {"answer": style_advice(wardrobe, payload.question)}
+
+
+@app.get("/shopping-guidance/{user_id}")
+def get_shopping_guidance(user_id: int, db: Session = Depends(get_db)):
+    return {"suggestions": shopping_guidance(_user_wardrobe(db, user_id))}
