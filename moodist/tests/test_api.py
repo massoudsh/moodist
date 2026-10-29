@@ -284,3 +284,27 @@ def test_shopping_guidance_suggests_missing_categories():
     assert resp.status_code == 200
     suggestions = resp.json()["suggestions"]
     assert any("bottom" in s for s in suggestions)
+
+
+def test_pages_contract_lists_product_pages():
+    resp = client.get("/pages")
+    assert resp.status_code == 200
+    slugs = {page["path"] for page in resp.json()["pages"]}
+    assert {"/", "/wardrobe", "/outfits", "/discover", "/profile"} <= slugs
+
+
+def test_page_definition_and_unknown_page():
+    resp = client.get("/pages/wardrobe")
+    assert resp.status_code == 200
+    assert resp.json()["title"] == "کمد من"
+
+    missing = client.get("/pages/unknown")
+    assert missing.status_code == 404
+
+
+def test_iran_competitor_report_has_five_rivals():
+    resp = client.get("/competitors/iran")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["competitors"]) == 5
+    assert all(item["source"].startswith("https://") for item in body["competitors"])

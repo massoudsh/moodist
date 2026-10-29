@@ -93,16 +93,25 @@ POST /analyze  { user_id, image (upload) یا product_url }
 ## ساختار پوشه‌ها
 ```
 moodist/
+  backend/           قرارداد صفحه‌ها و گزارش رقبا
+  frontend/          محل کلاینت وب آینده
+  db/migrations/     محل مهاجرت‌های دیتابیس
   docs/
     prd.md            سند محصول
-    architecture.md    همین سند
-  app/
-    main.py            FastAPI app + endpointها
-    database.py         اتصال SQLite + session
-    models.py            مدل‌های SQLAlchemy
-    schemas.py           اسکیمای Pydantic (ورودی/خروجی API)
-    vision.py            VisionAnalyzer (interface + پیاده‌سازی heuristic)
-    matcher.py           منطق امتیازدهی بخر/نخر
-  tests/
-    test_api.py          تست‌های end-to-end روی endpointها
+    architecture.md   همین سند
+  app/                API FastAPI و منطق دامنه
+    main.py           endpointهای API و صفحه‌ها
+    database.py       اتصال SQLite/PostgreSQL و session
+    models.py         مدل‌های SQLAlchemy
+    schemas.py        اسکیمای Pydantic
+    styling.py        تحلیل کمد و پیشنهاد ست
+    vision.py         VisionAnalyzer
+    matcher.py        منطق امتیازدهی بخر/نخر
+  tests/              تست‌های end-to-end
 ```
+
+## قرارداد صفحه‌ها و پایش رقبا
+- `GET /pages` فهرست صفحه‌های محصول و actionهای هر صفحه را برمی‌گرداند.
+- `GET /pages/{slug}` قرارداد یک صفحه را برمی‌گرداند.
+- `GET /competitors/iran` آخرین snapshot پنج رقیب ایرانی و پاسخ پیشنهادی مودیست را برمی‌گرداند.
+- گزارش رقیب از منابع عمومی تهیه شده و برای تحلیل دوهفته‌ای باید با منابع جدید بازبینی شود.

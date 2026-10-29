@@ -12,6 +12,8 @@ from PIL import Image, UnidentifiedImageError
 from sqlalchemy.orm import Session
 
 from app import config
+from backend.competitors import get_competitor_report
+from backend.pages import get_page, page_list
 from app.database import Base, engine, get_db
 from app.matcher import decide
 from app.models import (
@@ -249,3 +251,21 @@ def ask_style(payload: StyleQuestionIn, db: Session = Depends(get_db)):
 @app.get("/shopping-guidance/{user_id}")
 def get_shopping_guidance(user_id: int, db: Session = Depends(get_db)):
     return {"suggestions": shopping_guidance(_user_wardrobe(db, user_id))}
+
+
+@app.get("/pages")
+def list_pages():
+    return {"pages": page_list()}
+
+
+@app.get("/pages/{slug}")
+def page_definition(slug: str):
+    page = get_page(slug)
+    if page is None:
+        raise HTTPException(404, "صفحه پیدا نشد")
+    return page
+
+
+@app.get("/competitors/iran")
+def iran_competitor_report():
+    return get_competitor_report()
