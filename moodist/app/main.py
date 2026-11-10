@@ -25,6 +25,8 @@ from app.models import (
     WardrobeItem,
 )
 from app.schemas import (
+    OCCASION,
+    OutfitOut,
     PurchaseDecisionIn,
     RecommendationOut,
     StyleQuestionIn,
@@ -34,7 +36,6 @@ from app.schemas import (
     UserOut,
     WardrobeAnalysisOut,
     WardrobeItemOut,
-    OutfitOut,
 )
 from app.styling import analyze_wardrobe, shopping_guidance, style_advice, suggest_outfits
 from app.vision import HeuristicVisionAnalyzer
@@ -251,6 +252,11 @@ def ask_style(payload: StyleQuestionIn, db: Session = Depends(get_db)):
 @app.get("/shopping-guidance/{user_id}")
 def get_shopping_guidance(user_id: int, db: Session = Depends(get_db)):
     return {"suggestions": shopping_guidance(_user_wardrobe(db, user_id))}
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
 
 
 @app.get("/pages")

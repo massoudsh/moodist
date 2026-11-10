@@ -1,0 +1,37 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-moodist}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-moodist}
+      POSTGRES_DB: ${POSTGRES_DB:-moodist}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-moodist} -d ${POSTGRES_DB:-moodist}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  api:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      MOODIST_ENV: ${MOODIST_ENV:-development}
+      MOODIST_DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-moodist}:${POSTGRES_PASSWORD:-moodist}@db:5432/${POSTGRES_DB:-moodist}
+      MOODIST_SECRET_KEY: ${MOODIST_SECRET_KEY:-dev-insecure-secret-change-me}
+      MOODIST_VISION_PROVIDER: ${MOODIST_VISION_PROVIDER:-heuristic}
+      MOODIST_STORAGE_BACKEND: ${MOODIST_STORAGE_BACKEND:-local}
+      MOODIST_LOCAL_STORAGE_DIR: /app/storage/images
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      - images:/app/storage/images
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  images:
