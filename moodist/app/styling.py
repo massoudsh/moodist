@@ -82,8 +82,18 @@ class Outfit:
     explanation: str
 
 
+def _fits_season(item: WardrobeItem, season: str | None) -> bool:
+    if season is None:
+        return True
+    item_season = (item.season or "all").lower()
+    return item_season in ("all", season)
+
+
 def suggest_outfits(
-    wardrobe: list[WardrobeItem], occasion: str = "casual", limit: int = 3
+    wardrobe: list[WardrobeItem],
+    occasion: str = "casual",
+    limit: int = 3,
+    season: str | None = None,
 ) -> list[Outfit]:
     priorities = OCCASION_PRIORITIES.get(occasion)
     if priorities is None:
@@ -91,6 +101,8 @@ def suggest_outfits(
 
     by_family: dict[str, list[WardrobeItem]] = {family: [] for family in CATEGORY_FAMILIES}
     for item in wardrobe:
+        if item.archived or not _fits_season(item, season):
+            continue
         family = get_family(item.category)
         if family is not None:
             by_family[family].append(item)
@@ -117,7 +129,10 @@ def suggest_outfits(
                 occasion=occasion,
                 items=chosen,
                 matched_color=anchor.dominant_color,
-                explanation=f"ست {occasion} بر پایهٔ {anchor.category} {anchor.dominant_color}",
+                explanation=(
+                    f"ست {occasion} بر پایهٔ {anchor.category} {anchor.dominant_color}"
+                    + (f" برای فصل {season}" if season else "")
+                ),
             )
         )
     return outfits
@@ -159,3 +174,51 @@ def shopping_guidance(wardrobe: list[WardrobeItem]) -> list[str]:
     if not suggestions:
         suggestions.append("کمدت دسته‌های اصلی را پوشش داده؛ پیش از خرید، تکراری بودن را بسنج")
     return suggestions
+
+
+@dataclass
+class PackingPlan:
+    days: int
+    season: str | None
+    items: list[WardrobeItem]
+    missing_categories: list[str]
+    notes: list[str]
+
+
+def packing_plan(
+    wardrobe: list[WardrobeItem], days: int = 3, season: str | None = None
+) -> PackingPlan:
+    """فهرست سفر: کمترین تعداد قطعه که چند ست متفاوت می‌سازد."""
+    days = max(1, min(days, 30))
+    available = [item for item in wardrobe if not item.archived and _fits_season(item, season)]
+
+    by_family: dict[str, list[WardrobeItem]] = {family: [] for family in CATEGORY_FAMILIES}
+    for item in available:
+        family = get_family(item.category)
+        if family is not None:
+            by_family[family].append(item)
+
+    items: list[WardrobeItem] = []
+    notes: list[str] = []
+    # برای هر شبانه‌روز یک ست پایه: تعداد محدود قطعه، حداکثر ۴ تا از هر خانواده
+    per_family_cap = 1 if days <= 2 else 2 if days <= 4 else 3 if days <= 7 else 4
+    for family, family_items in by_family.items():
+        items.extend(family_items[:per_family_cap])
+
+    missing = [family for family in CATEGORY_FAMILIES if not by_family.get(family)]
+    if missing:
+        notes.append("برای سفر این دسته‌ها در کمدت خالی‌اند: " + "، ".join(missing))
+    if season:
+        notes.append(f"فقط قطعه‌های مناسب فصل {season} انتخاب شدند")
+    combinations = 1
+    for family, family_items in by_family.items():
+        combinations *= max(len(family_items[:per_family_cap]), 1)
+    notes.append(f"این {len(items)} قطعه تا {combinations} ترکیب متفاوت می‌سازد")
+
+    return PackingPlan(
+        days=days,
+        season=season,
+        items=items,
+        missing_categories=missing,
+        notes=notes,
+    )

@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -51,6 +51,10 @@ class WardrobeItem(Base):
     category: Mapped[str] = mapped_column(String)
     dominant_color: Mapped[str] = mapped_column(String)
     style: Mapped[str | None] = mapped_column(String, nullable=True)
+    season: Mapped[str] = mapped_column(String, default="all")
+    purchase_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    times_worn: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    archived: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
     user: Mapped["User"] = relationship(back_populates="wardrobe_items")
@@ -96,3 +100,17 @@ class PurchaseHistory(Base):
     product_query_id: Mapped[int] = mapped_column(ForeignKey("product_queries.id"))
     decision: Mapped[str] = mapped_column(String)  # "bought" | "skipped"
     decided_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class SavedOutfit(Base):
+    """ست ذخیره‌شده — کمد، برنامه‌ریز و فهرست سفر روی همین گزارش ساخته می‌شوند."""
+
+    __tablename__ = "saved_outfits"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    name: Mapped[str] = mapped_column(String)
+    occasion: Mapped[str] = mapped_column(String, default="casual")
+    item_ids: Mapped[list] = mapped_column(JSON, default=list)
+    planned_for: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)

@@ -104,7 +104,9 @@ moodist/
     database.py       اتصال SQLite/PostgreSQL و session
     models.py         مدل‌های SQLAlchemy
     schemas.py        اسکیمای Pydantic
-    styling.py        تحلیل کمد و پیشنهاد ست
+    styling.py        تحلیل کمد، پیشنهاد ست و فهرست سفر
+    weather.py        فصل و آب‌وهوا برای پیشنهاد روز
+    wear.py           هزینهٔ هر بار استفاده و آمار پوشیدن
     vision.py         VisionAnalyzer
     matcher.py        منطق امتیازدهی بخر/نخر
   tests/              تست‌های end-to-end
@@ -122,3 +124,21 @@ moodist/
 - متغیرهای محیطی از `.env` خوانده می‌شوند؛ نمونه در `.env.example` است.
 - `GET /health` برای liveness/readiness استفاده می‌شود.
 - بیلد ایمیج باید روی سرور SSH انجام شود، نه داخل کانتینر توسعه.
+
+## قابلیت‌های افزوده‌شده از تحلیل رقبا (۲۰۲۶-۱۱-۲۴)
+پنج قابلیت مشترک میان رقبای ایرانی (جالباسی، چی‌بپوشم، MiriYou، Doku، ModAI) و
+بین‌المللی (Whering, Acloset, Stylebook, Cladwell, Alta) پیاده شد:
+
+| قابلیت | Endpoint |
+|---|---|
+| فصل‌بندی کمد و پیشنهاد روز بر پایهٔ آب‌وهوا | `GET /outfits/today/{user_id}` |
+| ردیابی پوشیدن و هزینهٔ هر بار استفاده | `POST /wardrobe/{item_id}/wear`، `GET /wardrobe/stats/{user_id}` |
+| فهرست بسته‌بندی سفر | `GET /packing-plan/{user_id}` |
+| ذخیره و برنامه‌ریزی ست | `POST /outfits/saved`، `GET /outfits/saved/{user_id}`، `DELETE /outfits/saved/{outfit_id}` |
+| ویرایش/بایگانی آیتم و قیمت خرید | `PATCH /wardrobe/{item_id}`، `DELETE /wardrobe/{item_id}` |
+
+گزارش کامل رقبا و نگاشت قابلیت‌ها: `GET /competitors/market`.
+
+### تغییر مدل داده
+- `WardrobeItem`: `season` (پیش‌فرض `all`)، `purchase_price`، `times_worn`، `archived` (حذف نرم)
+- `SavedOutfit` (جدید): `user_id`، `name`، `occasion`، `item_ids`، `planned_for`، `created_at`

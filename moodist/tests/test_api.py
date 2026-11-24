@@ -308,3 +308,185 @@ def test_iran_competitor_report_has_five_rivals():
     body = resp.json()
     assert len(body["competitors"]) == 5
     assert all(item["source"].startswith("https://") for item in body["competitors"])
+
+
+def _add_item_full(
+    user_id: int,
+    category: str,
+    color: tuple[int, int, int],
+    season: str = "all",
+    price: float | None = None,
+) -> dict:
+    data = {"user_id": user_id, "category": category, "season": season}
+    if price is not None:
+        data["purchase_price"] = price
+    resp = client.post(
+        "/wardrobe",
+        data=data,
+        files={"image": (f"{category}.jpg", _solid_color_image(color), "image/jpeg")},
+    )
+    assert resp.status_code == 200, resp.text
+    return resp.json()
+
+
+def test_wardrobe_item_starts_with_wear_and_season_defaults():
+    user_id = _create_user()
+    item = _add_item_full(user_id, "shirt", BLUE, season="summer", price=120.0)
+    assert item["season"] == "summer"
+    assert item["purchase_price"] == 120.0
+    assert item["times_worn"] == 0
+    assert item["archived"] is False
+
+
+def test_negative_purchase_price_rejected():
+    user_id = _create_user()
+    resp = client.post(
+        "/wardrobe",
+        data={"user_id": user_id, "category": "shirt", "purchase_price": -5},
+        files={"image": ("s.jpg", _solid_color_image(BLUE), "image/jpeg")},
+    )
+    assert resp.status_code == 422
+
+
+def test_patch_wardrobe_item_updates_metadata():
+    user_id = _create_user()
+    item = _add_item_full(user_id, "shirt", BLUE)
+    resp = client.patch(
+        f"/wardrobe/{item['id']}",
+        json={"season": "winter", "purchase_price": 80, "style": "minimal"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["season"] == "winter"
+    assert body["purchase_price"] == 80.0
+    assert body["style"] == "minimal"
+
+
+def test_patch_unknown_item_returns_404():
+    resp = client.patch("/wardrobe/999999", json={"season": "winter"})
+    assert resp.status_code == 404
+
+
+def test_wear_tracking_and_cost_per_wear():
+    user_id = _create_user()
+    item = _add_item_full(user_id, "shoes", BLUE, price=200.0)
+
+    resp = client.post(f"/wardrobe/{item['id']}/wear", json={"times": 4})
+    assert resp.status_code == 200
+    assert resp.json()["times_worn"] == 4
+
+    stats = client.get(f"/wardrobe/stats/{user_id}")
+    assert stats.status_code == 200
+    body = stats.json()
+    assert body["total_items"] == 1
+    assert body["tracked_items"] == 1
+    assert body["total_spend"] == 200.0
+    assert body["total_wears"] == 4
+    assert body["average_cost_per_wear"] == 50.0
+    assert body["best_value"][0]["cost_per_wear"] == 50.0
+
+
+def test_archiving_item_hides_it_from_outfits_but_keeps_stats():
+    user_id = _create_user()
+    shirt = _add_item_full(user_id, "shirt", BLUE)
+    _add_item_full(user_id, "pants", (30, 30, 30), price=90.0)
+
+    before = client.get(f"/outfits/{user_id}").json()
+    assert len(before) == 1
+    resp = client.delete(f"/wardrobe/{shirt['id']}")
+    assert resp.status_code == 200
+    after = client.get(f"/outfits/{user_id}").json()
+    assert all(item["id"] != shirt["id"] for outfit in after for item in outfit["items"])
+
+    stats = client.get(f"/wardrobe/stats/{user_id}").json()
+    assert stats["total_items"] == 2
+
+
+def test_outfits_filter_by_season():
+    user_id = _create_user()
+    _add_item_full(user_id, "shirt", BLUE, season="summer")
+    _add_item_full(user_id, "pants", (30, 30, 30), season="winter")
+
+    summer = client.get(f"/outfits/{user_id}", params={"season": "summer"}).json()
+    assert all(item["category"] == "shirt" for outfit in summer for item in outfit["items"])
+
+    resp = client.get(f"/outfits/{user_id}", params={"season": "monsoon"})
+    assert resp.status_code == 422
+
+
+def test_outfit_of_the_day_uses_weather():
+    user_id = _create_user()
+    _add_item_full(user_id, "shirt", BLUE, season="summer")
+
+    resp = client.get(
+        f"/outfits/today/{user_id}", params={"temperature_c": 33, "condition": "clear"}
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["weather"]["season"] == "summer"
+    assert len(body["outfits"]) == 1
+
+    rainy = client.get(
+        f"/outfits/today/{user_id}", params={"temperature_c": 12, "condition": "rain"}
+    ).json()
+    assert "بارانی" in rainy["weather"]["advice"]
+
+
+def test_packing_plan_returns_items_and_notes():
+    user_id = _create_user()
+    _add_item_full(user_id, "shirt", BLUE, season="summer")
+    _add_item_full(user_id, "pants", (30, 30, 30), season="summer")
+
+    resp = client.get(f"/packing-plan/{user_id}", params={"days": 5, "season": "summer"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["days"] == 5
+    assert {item["category"] for item in body["items"]} == {"shirt", "pants"}
+    assert body["missing_categories"]
+    assert body["notes"]
+
+
+def test_saved_outfit_roundtrip():
+    user_id = _create_user()
+    shirt = _add_item_full(user_id, "shirt", BLUE)
+    pants = _add_item_full(user_id, "pants", (30, 30, 30))
+
+    resp = client.post(
+        "/outfits/saved",
+        json={
+            "user_id": user_id,
+            "name": "مصاحبه",
+            "occasion": "formal",
+            "item_ids": [shirt["id"], pants["id"]],
+        },
+    )
+    assert resp.status_code == 200
+    outfit_id = resp.json()["id"]
+
+    listed = client.get(f"/outfits/saved/{user_id}").json()
+    assert len(listed) == 1
+    assert listed[0]["name"] == "مصاحبه"
+
+    assert client.delete(f"/outfits/saved/{outfit_id}").status_code == 200
+    assert client.get(f"/outfits/saved/{user_id}").json() == []
+
+
+def test_saved_outfit_rejects_items_owned_by_another_user():
+    owner = _create_user("owner@example.com")
+    other = _create_user("other@example.com")
+    item = _add_item_full(owner, "shirt", BLUE)
+
+    resp = client.post(
+        "/outfits/saved",
+        json={"user_id": other, "name": "x", "item_ids": [item["id"]]},
+    )
+    assert resp.status_code == 404
+
+
+def test_market_report_covers_iran_and_international_rivals():
+    resp = client.get("/competitors/market")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["competitors"]) == 5
+    assert len(body["international"]) == 5
+    assert len(body["implemented_features"]) == 5

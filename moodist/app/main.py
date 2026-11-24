@@ -5,6 +5,7 @@
 
 import os
 import uuid
+from datetime import date
 from io import BytesIO
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
@@ -12,23 +13,27 @@ from PIL import Image, UnidentifiedImageError
 from sqlalchemy.orm import Session
 
 from app import config
-from backend.competitors import get_competitor_report
-from backend.pages import get_page, page_list
 from app.database import Base, engine, get_db
 from app.matcher import decide
 from app.models import (
     PurchaseHistory,
     ProductQuery,
     Recommendation,
+    SavedOutfit,
     TasteProfile,
     User,
     WardrobeItem,
 )
 from app.schemas import (
+    ITEM_SEASON,
     OCCASION,
+    SEASON,
     OutfitOut,
+    PackingPlanOut,
     PurchaseDecisionIn,
     RecommendationOut,
+    SavedOutfitIn,
+    SavedOutfitOut,
     StyleQuestionIn,
     TasteProfileIn,
     TasteProfileOut,
@@ -36,9 +41,22 @@ from app.schemas import (
     UserOut,
     WardrobeAnalysisOut,
     WardrobeItemOut,
+    WardrobeItemUpdateIn,
+    WardrobeItemWearIn,
+    WearStatsOut,
 )
-from app.styling import analyze_wardrobe, shopping_guidance, style_advice, suggest_outfits
+from app.styling import (
+    analyze_wardrobe,
+    packing_plan,
+    shopping_guidance,
+    style_advice,
+    suggest_outfits,
+)
 from app.vision import HeuristicVisionAnalyzer
+from app.wear import wardrobe_stats
+from app.weather import weather_for
+from backend.competitors import get_competitor_report, get_iran_competitor_report
+from backend.pages import get_page, page_list
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STORAGE_DIR = config.LOCAL_STORAGE_DIR or os.path.join(BASE_DIR, "storage", "images")
@@ -124,11 +142,15 @@ def add_wardrobe_item(
     user_id: int = Form(...),
     category: str = Form(...),
     image: UploadFile = File(...),
+    season: ITEM_SEASON = Form("all"),
+    purchase_price: float | None = Form(None),
     db: Session = Depends(get_db),
 ):
     user = db.get(User, user_id)
     if not user:
         raise HTTPException(404, "کاربر پیدا نشد")
+    if purchase_price is not None and purchase_price < 0:
+        raise HTTPException(422, "قیمت نمی‌تواند منفی باشد")
 
     data, image_format = _read_image(image)
     result = vision_analyzer.analyze(data, category_hint=category)
@@ -140,6 +162,8 @@ def add_wardrobe_item(
         category=result.category,
         dominant_color=result.dominant_color,
         style=result.style,
+        season=season,
+        purchase_price=purchase_price,
     )
     db.add(item)
     db.commit()
@@ -227,10 +251,15 @@ def list_purchase_history(user_id: int, db: Session = Depends(get_db)):
     )
 
 
-def _user_wardrobe(db: Session, user_id: int) -> list[WardrobeItem]:
+def _user_wardrobe(
+    db: Session, user_id: int, include_archived: bool = False
+) -> list[WardrobeItem]:
     if not db.get(User, user_id):
         raise HTTPException(404, "کاربر پیدا نشد")
-    return db.query(WardrobeItem).filter(WardrobeItem.user_id == user_id).all()
+    query = db.query(WardrobeItem).filter(WardrobeItem.user_id == user_id)
+    if not include_archived:
+        query = query.filter(WardrobeItem.archived.is_(False))
+    return query.all()
 
 
 @app.get("/wardrobe/analysis/{user_id}", response_model=WardrobeAnalysisOut)
@@ -239,8 +268,59 @@ def wardrobe_analysis(user_id: int, db: Session = Depends(get_db)):
 
 
 @app.get("/outfits/{user_id}", response_model=list[OutfitOut])
-def outfits(user_id: int, occasion: OCCASION = "casual", db: Session = Depends(get_db)):
-    return suggest_outfits(_user_wardrobe(db, user_id), occasion=occasion)
+def outfits(
+    user_id: int,
+    occasion: OCCASION = "casual",
+    season: SEASON | None = None,
+    db: Session = Depends(get_db),
+):
+    return suggest_outfits(
+        _user_wardrobe(db, user_id), occasion=occasion, season=season
+    )
+
+
+@app.get("/outfits/today/{user_id}")
+def outfit_of_the_day(
+    user_id: int,
+    occasion: OCCASION = "casual",
+    temperature_c: float | None = None,
+    condition: str = "clear",
+    db: Session = Depends(get_db),
+):
+    """پیشنهاد روز: ست متناسب با هوا و فصل."""
+    wardrobe = _user_wardrobe(db, user_id)
+    weather = weather_for(temperature_c=temperature_c, condition=condition)
+    suggestions = suggest_outfits(
+        wardrobe, occasion=occasion, limit=3, season=weather.season
+    )
+    return {
+        "date": date.today().isoformat(),
+        "weather": {
+            "season": weather.season,
+            "temperature_c": weather.temperature_c,
+            "condition": weather.condition,
+            "advice": weather.advice,
+        },
+        "outfits": suggestions,
+    }
+
+
+@app.get("/packing-plan/{user_id}", response_model=PackingPlanOut)
+def get_packing_plan(
+    user_id: int,
+    days: int = 3,
+    season: SEASON | None = None,
+    db: Session = Depends(get_db),
+):
+    wardrobe = _user_wardrobe(db, user_id)
+    plan = packing_plan(wardrobe, days=days, season=season)
+    return PackingPlanOut(
+        days=plan.days,
+        season=plan.season,
+        items=plan.items,
+        missing_categories=plan.missing_categories,
+        notes=plan.notes,
+    )
 
 
 @app.post("/style-advice")
@@ -252,6 +332,107 @@ def ask_style(payload: StyleQuestionIn, db: Session = Depends(get_db)):
 @app.get("/shopping-guidance/{user_id}")
 def get_shopping_guidance(user_id: int, db: Session = Depends(get_db)):
     return {"suggestions": shopping_guidance(_user_wardrobe(db, user_id))}
+
+
+@app.patch("/wardrobe/{item_id}", response_model=WardrobeItemOut)
+def update_wardrobe_item(
+    item_id: int, payload: WardrobeItemUpdateIn, db: Session = Depends(get_db)
+):
+    item = db.get(WardrobeItem, item_id)
+    if not item:
+        raise HTTPException(404, "آیتم کمد پیدا نشد")
+    if payload.purchase_price is not None and payload.purchase_price < 0:
+        raise HTTPException(422, "قیمت نمی‌تواند منفی باشد")
+
+    for field in ("category", "style", "season", "purchase_price"):
+        value = getattr(payload, field)
+        if value is not None:
+            setattr(item, field, value)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@app.delete("/wardrobe/{item_id}")
+def archive_wardrobe_item(item_id: int, db: Session = Depends(get_db)):
+    """آیتم را بایگانی می‌کند (حذف نرم) تا تاریخچه و آمار از دست نرود."""
+    item = db.get(WardrobeItem, item_id)
+    if not item:
+        raise HTTPException(404, "آیتم کمد پیدا نشد")
+    item.archived = True
+    db.commit()
+    return {"status": "archived"}
+
+
+@app.post("/wardrobe/{item_id}/wear", response_model=WardrobeItemOut)
+def record_wear(
+    item_id: int, payload: WardrobeItemWearIn, db: Session = Depends(get_db)
+):
+    item = db.get(WardrobeItem, item_id)
+    if not item:
+        raise HTTPException(404, "آیتم کمد پیدا نشد")
+    item.times_worn = (item.times_worn or 0) + payload.times
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@app.get("/wardrobe/stats/{user_id}", response_model=WearStatsOut)
+def get_wear_stats(user_id: int, db: Session = Depends(get_db)):
+    return wardrobe_stats(_user_wardrobe(db, user_id, include_archived=True))
+
+
+@app.post("/outfits/saved", response_model=SavedOutfitOut)
+def save_outfit(payload: SavedOutfitIn, db: Session = Depends(get_db)):
+    if not db.get(User, payload.user_id):
+        raise HTTPException(404, "کاربر پیدا نشد")
+
+    owned = {
+        item.id
+        for item in db.query(WardrobeItem)
+        .filter(
+            WardrobeItem.user_id == payload.user_id,
+            WardrobeItem.id.in_(payload.item_ids),
+        )
+        .all()
+    }
+    unknown = sorted(set(payload.item_ids) - owned)
+    if unknown:
+        raise HTTPException(404, f"آیتم کمد پیدا نشد: {unknown}")
+
+    outfit = SavedOutfit(
+        user_id=payload.user_id,
+        name=payload.name,
+        occasion=payload.occasion,
+        item_ids=payload.item_ids,
+        planned_for=payload.planned_for,
+    )
+    db.add(outfit)
+    db.commit()
+    db.refresh(outfit)
+    return outfit
+
+
+@app.get("/outfits/saved/{user_id}", response_model=list[SavedOutfitOut])
+def list_saved_outfits(user_id: int, db: Session = Depends(get_db)):
+    if not db.get(User, user_id):
+        raise HTTPException(404, "کاربر پیدا نشد")
+    return (
+        db.query(SavedOutfit)
+        .filter(SavedOutfit.user_id == user_id)
+        .order_by(SavedOutfit.created_at.desc())
+        .all()
+    )
+
+
+@app.delete("/outfits/saved/{outfit_id}")
+def delete_saved_outfit(outfit_id: int, db: Session = Depends(get_db)):
+    outfit = db.get(SavedOutfit, outfit_id)
+    if not outfit:
+        raise HTTPException(404, "ست ذخیره‌شده پیدا نشد")
+    db.delete(outfit)
+    db.commit()
+    return {"status": "deleted"}
 
 
 @app.get("/health")
@@ -274,4 +455,10 @@ def page_definition(slug: str):
 
 @app.get("/competitors/iran")
 def iran_competitor_report():
+    return get_iran_competitor_report()
+
+
+@app.get("/competitors/market")
+def market_competitor_report():
+    """پنج رقیب ایرانی و پنج رقیب بین‌المللی به‌همراه قابلیت‌های پیاده‌شده."""
     return get_competitor_report()
